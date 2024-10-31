@@ -14,28 +14,33 @@ export const DocumentSchema = Yup.object().shape({
   name: Yup.string().required("Document name is required"),
   uploadedBy: Yup.string().required("Uploader ID is required"),
   downloadURL: Yup.string().url().required("Download URL is required"),
+  sessionId: Yup.string().required("Session ID is required"), // Added sessionId
 });
 
-// Session schema for validating session data
+// Updated Session schema for creating a session
 export const SessionSchema = Yup.object().shape({
   title: Yup.string().required("Session title is required"),
   createdBy: Yup.string().required("Creator ID is required"),
   createdAt: Yup.date().required("Creation date is required"),
+  joinedUsers: Yup.array().of(Yup.string()), // Array of user IDs who joined the session
 });
 
 // Question schema for validating questions related to a session
 export const QuestionSchema = Yup.object().shape({
-  content: Yup.string().required("Question content is required"),
+  content: Yup.string().when("type", {
+    is: "text",
+    then: (schema) => schema.required("Question content is required"),
+    otherwise: (schema) => schema.nullable(),
+  }),
   sessionId: Yup.string().required("Session ID is required"),
   askedBy: Yup.string().required("Asker ID is required"),
   type: Yup.mixed()
     .oneOf(["text", "image"])
     .required("Question type is required"),
+  answer: Yup.string().nullable(), // Nullable because the answer may not be available initially
+  answerType: Yup.mixed().oneOf(["text", "image"]).nullable(), // Type of answer (text or image)
 });
 
-// Answer schema for validating answers associated with a question
-export const AnswerSchema = Yup.object().shape({
-  content: Yup.string().required("Answer content is required"),
-  questionId: Yup.string().required("Question ID is required"),
-  answeredBy: Yup.string().required("Responder ID is required"),
+export const SessionIdSchema = Yup.object({
+  sessionId: Yup.string().required("Session ID is required"),
 });
