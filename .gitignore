@@ -1,1 +1,27 @@
-node_modules
+# Node modules and dependencies
+node_modules/
+package-lock.json
+
+# Environment variables and Firebase credentials
+.env
+.env.local
+.firebase/
+firebase.json
+firebaserc
+
+# Next.js build output
+.next/
+
+# Generated files or TypeScript build output (if any)
+dist/
+out/
+
+# Temporary files and logs
+*.log
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# OS-specific files
+Thumbs.db
