@@ -6,6 +6,7 @@ export const UserSchema = Yup.object().shape({
   password: Yup.string().required("Password is required"),
   role: Yup.string().required("Role is required"),
   username: Yup.string().required("Username is required"),
+  email: Yup.string().email().required("Email is required"),
 });
 
 // Document schema for validating document details
@@ -27,7 +28,9 @@ export const QuestionSchema = Yup.object().shape({
   content: Yup.string().required("Question content is required"),
   sessionId: Yup.string().required("Session ID is required"),
   askedBy: Yup.string().required("Asker ID is required"),
-  type: Yup.mixed().oneOf(["text", "image"]).required("Question type is required"),
+  type: Yup.mixed()
+    .oneOf(["text", "image"])
+    .required("Question type is required"),
 });
 
 // Answer schema for validating answers associated with a question
