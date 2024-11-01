@@ -29,8 +29,8 @@ export const SessionSchema = Yup.object().shape({
 export const QuestionSchema = Yup.object().shape({
   content: Yup.string().when("type", {
     is: "text",
-    then: (schema) => schema.required("Question content is required"),
-    otherwise: (schema) => schema.nullable(),
+    then: (schema:any) => schema.required("Question content is required"),
+    otherwise: (schema:any) => schema.nullable(),
   }),
   sessionId: Yup.string().required("Session ID is required"),
   askedBy: Yup.string().required("Asker ID is required"),
