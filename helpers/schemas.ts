@@ -13,7 +13,6 @@ export const UserSchema = Yup.object().shape({
 export const DocumentSchema = Yup.object().shape({
   name: Yup.string().required("Document name is required"),
   uploadedBy: Yup.string().required("Uploader ID is required"),
-  downloadURL: Yup.string().url().required("Download URL is required"),
   sessionId: Yup.string().required("Session ID is required"), // Added sessionId
 });
 

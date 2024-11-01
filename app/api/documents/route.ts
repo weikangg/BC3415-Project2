@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Validate the input data using the updated DocumentSchema
-    await DocumentSchema.validate({ name, uploadedBy, sessionId, downloadURL: "" });
+    await DocumentSchema.validate({ name, uploadedBy, sessionId });
 
     // Upload file to Firebase Storage
     const downloadURL = await uploadFileToStorage(file);
@@ -40,9 +40,18 @@ export async function POST(request: Request) {
       sessionId, // Include sessionId in Firestore document
     });
 
-    return NextResponse.json({ id: docRef.id, name, uploadedBy, downloadURL, sessionId });
+    return NextResponse.json({
+      id: docRef.id,
+      name,
+      uploadedBy,
+      downloadURL,
+      sessionId,
+    });
   } catch (error: any) {
     console.error("Error uploading document:", error);
-    return NextResponse.json({ error: error.message || "Failed to upload document" }, { status: 400 });
+    return NextResponse.json(
+      { error: error.message || "Failed to upload document" },
+      { status: 400 }
+    );
   }
 }
