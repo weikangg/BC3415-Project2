@@ -1,69 +1,121 @@
 "use client";
-import React from "react";
-import dynamic from "next/dynamic";
-import { TableWrapper } from "../table/table";
-import { CardBalance1 } from "./card-balance1";
-import { CardBalance2 } from "./card-balance2";
-import { CardBalance3 } from "./card-balance3";
-import { CardAgents } from "./card-agents";
-import { CardTransactions } from "./card-transactions";
-import { Link } from "@nextui-org/react";
-import NextLink from "next/link";
+import React, { useState } from "react";
 
-const Chart = dynamic(
-  () => import("../charts/steam").then((mod) => mod.Steam),
-  {
-    ssr: false,
-  }
-);
+export const Content = () => {
+  const [question, setQuestion] = useState("");
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-export const Content = () => (
-  <div className="h-full lg:px-6">
-    <div className="flex justify-center gap-4 xl:gap-6 pt-3 px-4 lg:px-0  flex-wrap xl:flex-nowrap sm:pt-10 max-w-[90rem] mx-auto w-full">
-      <div className="mt-6 gap-6 flex flex-col w-full">
-        {/* Card Section Top */}
-        <div className="flex flex-col gap-2">
-          <h3 className="text-xl font-semibold">Available Balance</h3>
-          <div className="grid md:grid-cols-2 grid-cols-1 2xl:grid-cols-3 gap-5  justify-center w-full">
-            <CardBalance1 />
-            <CardBalance2 />
-            <CardBalance3 />
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    setUploadedFile(file);
+  };
+
+  const handleSubmit = async () => {
+    if (!question) return;
+  
+    setLoading(true);
+  
+    // Add user's question to the chat history
+    setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
+  
+    try {
+      // Prepare the payload
+      const payload = {
+        content: question,
+        askedBy: "student123",  // Replace with dynamic user ID if available
+        type: "text",
+      };
+      console.log("payload")
+      console.log(payload)
+      // Send POST request to the API endpoint
+      const response = await fetch("https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      if (!response.ok) {
+        throw new Error("Failed to fetch response from the API");
+      }
+  
+      // Parse the response
+      const data = await response.json();
+      const botMessage = data.answer || "No response from server";
+  
+      // Update chat history with bot response
+      setChatHistory((prev) => [...prev, { sender: "bot", message: botMessage }]);
+    } catch (error) {
+      console.error("Error:", error);
+      setChatHistory((prev) => [...prev, { sender: "bot", message: "Error processing request." }]);
+    }
+  
+    setLoading(false);
+    setQuestion("");
+    setUploadedFile(null);
+  };
+
+  return (
+    <div className="h-full lg:px-6 flex flex-col items-center gap-6">
+      {/* Main Chat Box Container */}
+      <div className="w-full max-w-2xl p-5 border rounded-lg shadow-md flex flex-col gap-4 bg-gray-50">
+        <h1 style={{color:'black'}}>Chat History</h1>
+        {/* Chat History Display */}
+        <div className="overflow-y-auto max-h-[300px] flex flex-col gap-4" style={{minHeight:'10rem', border:'1px grey solid', borderRadius:'0.5rem'}}>
+          {chatHistory.map((entry, index) => (
+            <div
+              key={index}
+              className={`p-3 rounded-md ${
+                entry.sender === "user" ? "bg-blue-100 text-blue-900" : "bg-gray-200 text-gray-900"
+              }`}
+            >
+              <strong>{entry.sender === "user" ? "You" : "AI"}:</strong> {entry.message}
+            </div>
+          ))}
+          {loading && <p className="text-gray-500">Generating response...</p>}
+        </div>
+  
+        {/* Divider */}
+        <hr className="my-4" />
+  
+        {/* Question and File Upload Section */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          {/* Question Input */}
+          <div className="flex-1">
+            <textarea
+              className="w-full p-2 border border-gray-300 rounded-md h-12 bg-white text-black"
+              placeholder="Type your question here..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+            />
+          </div>
+  
+          {/* File Upload Input */}
+          <div className="flex-1">
+            <input
+              type="file"
+              accept=".pdf, image/*"
+              className="w-full p-2 border border-gray-300 rounded-md h-12 cursor-pointer text-black"
+              onChange={handleFileUpload}
+            />
           </div>
         </div>
-
-        {/* Chart */}
-        <div className="h-full flex flex-col gap-2">
-          <h3 className="text-xl font-semibold">Statistics</h3>
-          <div className="w-full bg-default-50 shadow-lg rounded-2xl p-6 ">
-            <Chart />
-          </div>
-        </div>
-      </div>
-
-      {/* Left Section */}
-      <div className="mt-4 gap-2 flex flex-col xl:max-w-md w-full">
-        <h3 className="text-xl font-semibold">Section</h3>
-        <div className="flex flex-col justify-center gap-4 flex-wrap md:flex-nowrap md:flex-col">
-          <CardAgents />
-          <CardTransactions />
+  
+        {/* Submit Button */}
+        <div className="flex justify-end mt-4">
+          <button
+            className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
+            onClick={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? "Submitting..." : "Submit"}
+          </button>
         </div>
       </div>
     </div>
-
-    {/* Table Latest Users */}
-    <div className="flex flex-col justify-center w-full py-5 px-4 lg:px-0  max-w-[90rem] mx-auto gap-3">
-      <div className="flex  flex-wrap justify-between">
-        <h3 className="text-center text-xl font-semibold">Latest Users</h3>
-        <Link
-          href="/accounts"
-          as={NextLink}
-          color="primary"
-          className="cursor-pointer"
-        >
-          View All
-        </Link>
-      </div>
-      <TableWrapper />
-    </div>
-  </div>
-);
+  );
+  
+};
