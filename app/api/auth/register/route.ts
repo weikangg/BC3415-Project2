@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     );
     const user = userCredential.user;
 
+    
     // Store additional user info in Firestore
     const userRef = await addDoc(collection(db, "users"), {
       uid: user.uid,
