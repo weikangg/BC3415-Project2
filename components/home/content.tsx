@@ -1,58 +1,64 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 export const Content = () => {
-  const [question, setQuestion] = useState("");
-  const [uploadedFile, setUploadedFile] = useState(null);
-  const [chatHistory, setChatHistory] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    setUploadedFile(file);
+  type ChatMessage = {
+    sender: string;
+    message: string;
   };
-
+  
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [question, setQuestion] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+    }
+  };
+  
   const handleSubmit = async () => {
     if (!question) return;
-  
+
     setLoading(true);
-  
+
     // Add user's question to the chat history
     setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
-  
+
     try {
-      // Prepare the payload
       const payload = {
         content: question,
-        askedBy: "student123",  // Replace with dynamic user ID if available
+        askedBy: "student123", // Replace with dynamic user ID if available
         type: "text",
       };
-      console.log("payload")
-      console.log(payload)
-      // Send POST request to the API endpoint
-      const response = await fetch("https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-  
+
+      const response = await fetch(
+        "https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
       if (!response.ok) {
         throw new Error("Failed to fetch response from the API");
       }
-  
-      // Parse the response
+
       const data = await response.json();
       const botMessage = data.answer || "No response from server";
-  
+
       // Update chat history with bot response
       setChatHistory((prev) => [...prev, { sender: "bot", message: botMessage }]);
     } catch (error) {
       console.error("Error:", error);
       setChatHistory((prev) => [...prev, { sender: "bot", message: "Error processing request." }]);
     }
-  
+
     setLoading(false);
     setQuestion("");
     setUploadedFile(null);
