@@ -1,6 +1,6 @@
 "use client";
 import type { NextPage } from "next";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Card,
     CardBody,
@@ -14,13 +14,17 @@ import {
     TableCell,
 } from "@nextui-org/react";
 import JSZip from "jszip";
+import Link from "next/link";
+import { db, storage } from "@/firebaseConfig";
+import { doc, setDoc, collection, getDocs } from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
 
 // Define the type for each folder and file
 type Folder = {
-    id: number;
+    id: string;
     name: string;
     date: string;
-    files: { name: string; type: string }[];
+    files: { name: string; type: string; url: string }[];
 };
 
 // Define the columns with correct types
@@ -33,6 +37,29 @@ const columns: { key: keyof Folder | "actions"; label: string }[] = [
 const Home: NextPage = () => {
     const [folders, setFolders] = useState<Folder[]>([]);
 
+    // Fetch folders from Firestore on component mount
+    useEffect(() => {
+        const fetchFolders = async () => {
+            const folderCollection = collection(db, "folders");
+            const folderSnapshot = await getDocs(folderCollection);
+            const folderList: Folder[] = folderSnapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            })) as Folder[];
+
+            // Sort folders by extracting the numeric part from the name (e.g., "Week1" -> 1)
+            folderList.sort((a, b) => {
+                const numA = parseInt(a.name.replace(/\D/g, ""), 10); // Extract number from name
+                const numB = parseInt(b.name.replace(/\D/g, ""), 10); // Extract number from name
+                return numA - numB; // Sort in ascending order
+            });
+
+            setFolders(folderList);
+        };
+
+        fetchFolders();
+    }, []);
+
     // Function to handle ZIP file upload
     const handleZipUpload = async (
         event: React.ChangeEvent<HTMLInputElement>
@@ -40,47 +67,29 @@ const Home: NextPage = () => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        const zip = new JSZip();
-        const content = await zip.loadAsync(file);
+        const formData = new FormData();
+        formData.append("file", file);
+        console.log("Uploading ZIP file:", file);
 
-        const newFolders: Folder[] = [];
-        let folderId = folders.length + 1;
-        console.log("content: ", content);
-        // Identify top-level folders (e.g., "Week1", "Week2", etc.)
-        content.forEach((relativePath, zipEntry) => {
-            const pathParts = relativePath.split("/");
-            console.log("parthParts: ", pathParts);
-            console.log("ZipEntry: ", zipEntry);
-            // Check if it's a top-level folder
-            if (zipEntry.dir && pathParts[1] != "") {
-                const folderName = pathParts[1];
-                const folder: Folder = {
-                    id: folderId++,
-                    name: folderName,
-                    date: new Date().toLocaleDateString(),
-                    files: [],
-                };
+        try {
+            const response = await fetch("/api/uploadZip", {
+                method: "POST",
+                body: formData,
+            });
 
-                // Add files under this folder
-                content.forEach((innerPath, innerZipEntry) => {
-                    if (
-                        innerPath.startsWith(folderName) &&
-                        !innerZipEntry.dir
-                    ) {
-                        folder.files.push({
-                            name: innerZipEntry.name,
-                            type: innerZipEntry.name.endsWith(".pptx")
-                                ? "pptx"
-                                : "doc",
-                        });
-                    }
-                });
-
-                newFolders.push(folder);
+            const result = await response.json();
+            if (response.ok) {
+                console.log("Upload successful:", result);
+                setFolders((prevFolders) => [
+                    ...prevFolders,
+                    ...result.folders,
+                ]);
+            } else {
+                console.error("Upload failed:", result.error);
             }
-        });
-
-        setFolders([...folders, ...newFolders]);
+        } catch (error) {
+            console.error("Error uploading ZIP file:", error);
+        }
     };
 
     return (
@@ -112,14 +121,9 @@ const Home: NextPage = () => {
                             <TableCell>{folder.name}</TableCell>
                             <TableCell>{folder.date}</TableCell>
                             <TableCell>
-                                <Button
-                                    size="sm"
-                                    onPress={() =>
-                                        console.log("View", folder.id)
-                                    }
-                                >
-                                    View
-                                </Button>
+                                <Link href={`/folders/${folder.id}`} passHref>
+                                    <Button size="sm">View</Button>
+                                </Link>
                             </TableCell>
                         </TableRow>
                     ))}
