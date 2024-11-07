@@ -20,20 +20,41 @@ export const Content = () => {
   };
   
   const handleSubmit = async () => {
-    if (!question) return;
+    if (!question && !uploadedFile) return;
 
     setLoading(true);
 
-    // Add user's question to the chat history
-    setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
+    if (question) {
+      setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
+    } else if (uploadedFile) {
+      setChatHistory((prev) => [...prev, { sender: "user", message: "Uploaded file" }]);
+    }
 
     try {
-      const payload = {
-        content: question,
-        askedBy: "student123", // Replace with dynamic user ID if available
-        type: "text",
-      };
+      let imageContent = "";
 
+      if (uploadedFile) {
+        imageContent = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") {
+              resolve(reader.result); // Only resolve if result is a string
+            } else {
+              reject(new Error("File content is not a string"));
+            }
+          };
+          reader.onerror = () => reject(new Error("Failed to read image file"));
+          reader.readAsDataURL(uploadedFile); // Reads image file as Data URL
+        });
+      }
+  
+      // Prepare the payload, including question and image content if available
+      const payload = {
+        content: `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question || ""}\n\nImage Content:\n${imageContent || ""}`,
+        askedBy: "student123", // Replace with dynamic user ID if available
+        type: uploadedFile ? "image" : "text",
+      };
+  
       const response = await fetch(
         "https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions",
         {
@@ -44,21 +65,21 @@ export const Content = () => {
           body: JSON.stringify(payload),
         }
       );
-
+  
       if (!response.ok) {
         throw new Error("Failed to fetch response from the API");
       }
-
+  
       const data = await response.json();
       const botMessage = data.answer || "No response from server";
-
+  
       // Update chat history with bot response
       setChatHistory((prev) => [...prev, { sender: "bot", message: botMessage }]);
     } catch (error) {
       console.error("Error:", error);
       setChatHistory((prev) => [...prev, { sender: "bot", message: "Error processing request." }]);
     }
-
+  
     setLoading(false);
     setQuestion("");
     setUploadedFile(null);
@@ -103,7 +124,7 @@ export const Content = () => {
           <div className="flex-1">
             <input
               type="file"
-              accept=".pdf, image/*"
+              accept="image/*"
               className="w-full p-2 border border-gray-300 rounded-md h-12 cursor-pointer text-black"
               onChange={handleFileUpload}
             />
