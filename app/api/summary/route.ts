@@ -4,10 +4,19 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import fetch from "node-fetch";
 
 // Helper function to generate summary using OpenAI API
-async function generateSummary(content: string, transcription: string): Promise<string> {
+async function generateSummary(
+  content: string,
+  transcription: string
+): Promise<string> {
   const messages = [
-    { role: "system", content: "You are a helpful assistant that summarizes text." },
-    { role: "user", content: `Please summarize this content: ${content} with this transcription: ${transcription}` },
+    {
+      role: "system",
+      content: "You are a helpful assistant that summarizes text.",
+    },
+    {
+      role: "user",
+      content: `Please summarize this content: ${content} with this transcription: ${transcription}. If either transcription or content is not provided, just use whatever is provided. Provide a detailed summary.`,
+    },
   ];
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -39,7 +48,10 @@ export async function POST(request: Request) {
     const pageNumber = Number(formData.get("pageNumber"));
 
     if (!documentId || !pageNumber) {
-      return NextResponse.json({ error: "documentId and pageNumber are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "documentId and pageNumber are required" },
+        { status: 400 }
+      );
     }
 
     // Fetch the document from Firestore
@@ -47,7 +59,10 @@ export async function POST(request: Request) {
     const documentSnap = await getDoc(documentRef);
 
     if (!documentSnap.exists()) {
-      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Document not found" },
+        { status: 404 }
+      );
     }
 
     const documentData = documentSnap.data();
@@ -56,7 +71,10 @@ export async function POST(request: Request) {
     // Find the page with the matching pageNumber
     const page = pages.find((p: any) => p.pageNumber === pageNumber);
     if (!page) {
-      return NextResponse.json({ error: `Page number ${pageNumber} not found in document` }, { status: 404 });
+      return NextResponse.json(
+        { error: `Page number ${pageNumber} not found in document` },
+        { status: 404 }
+      );
     }
 
     // Get content and transcription from the specified page
