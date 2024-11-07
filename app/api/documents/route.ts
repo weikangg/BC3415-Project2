@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     // Validate the input data using the updated DocumentSchema
     await DocumentSchema.validate({ name, uploadedBy, sessionId });
 
+    
     // Upload file to Firebase Storage
     const downloadURL = await uploadFileToStorage(file);
 

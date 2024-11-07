@@ -24,7 +24,7 @@ export async function GET(
 
     // Generate a URL for the session that the QR code will point to
     const sessionData = sessionSnap.data();
-    const sessionURL = `https://localhost:3000/sessions/${sessionId}`; // TODO: CHANGE THIS LATER
+    const sessionURL = `https://bc-3415-project2.vercel.app/sessions/${sessionId}`; // TODO: CHANGE THIS LATER
 
     // Generate the QR code as a data URL
     const qrCodeDataUrl = await QRCode.toDataURL(sessionURL);
