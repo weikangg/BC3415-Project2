@@ -12,63 +12,93 @@ import {
     TableBody,
     TableRow,
     TableCell,
-    Chip,
 } from "@nextui-org/react";
-import Link from "next/link";
+import JSZip from "jszip";
 
-// Define the type for each session
-type Session = {
+// Define the type for each folder and file
+type Folder = {
     id: number;
     name: string;
     date: string;
-    status: string;
+    files: { name: string; type: string }[];
 };
 
 // Define the columns with correct types
-const columns: { key: keyof Session | "actions"; label: string }[] = [
-    { key: "name", label: "Session Name" },
+const columns: { key: keyof Folder | "actions"; label: string }[] = [
+    { key: "name", label: "Folder Name" },
     { key: "date", label: "Date Created" },
-    { key: "status", label: "Status" },
     { key: "actions", label: "Actions" },
 ];
 
 const Home: NextPage = () => {
-    const [sessionName, setSessionName] = useState("");
-    const [sessions, setSessions] = useState<Session[]>([]); // Use Session[] type
+    const [folders, setFolders] = useState<Folder[]>([]);
 
-    const handleCreateSession = () => {
-        if (sessionName) {
-            const newSession: Session = {
-                id: sessions.length + 1,
-                name: sessionName,
-                date: new Date().toLocaleDateString(),
-                status: "active", // Default status
-            };
-            setSessions([...sessions, newSession]);
-            setSessionName("");
-        }
+    // Function to handle ZIP file upload
+    const handleZipUpload = async (
+        event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const zip = new JSZip();
+        const content = await zip.loadAsync(file);
+
+        const newFolders: Folder[] = [];
+        let folderId = folders.length + 1;
+        console.log("content: ", content);
+        // Identify top-level folders (e.g., "Week1", "Week2", etc.)
+        content.forEach((relativePath, zipEntry) => {
+            const pathParts = relativePath.split("/");
+            console.log("parthParts: ", pathParts);
+            console.log("ZipEntry: ", zipEntry);
+            // Check if it's a top-level folder
+            if (zipEntry.dir && pathParts[1] != "") {
+                const folderName = pathParts[1];
+                const folder: Folder = {
+                    id: folderId++,
+                    name: folderName,
+                    date: new Date().toLocaleDateString(),
+                    files: [],
+                };
+
+                // Add files under this folder
+                content.forEach((innerPath, innerZipEntry) => {
+                    if (
+                        innerPath.startsWith(folderName) &&
+                        !innerZipEntry.dir
+                    ) {
+                        folder.files.push({
+                            name: innerZipEntry.name,
+                            type: innerZipEntry.name.endsWith(".pptx")
+                                ? "pptx"
+                                : "doc",
+                        });
+                    }
+                });
+
+                newFolders.push(folder);
+            }
+        });
+
+        setFolders([...folders, ...newFolders]);
     };
 
     return (
         <div className="container mx-auto p-4">
-            {/* Session Creation Card */}
+            {/* ZIP File Upload Card */}
             <Card className="mb-6 shadow-md">
                 <CardBody className="flex flex-col md:flex-row gap-4 items-center">
                     <Input
-                        fullWidth
-                        label="Session Name"
-                        placeholder="Enter session name"
-                        value={sessionName}
-                        onChange={(e) => setSessionName(e.target.value)}
+                        type="file"
+                        onChange={handleZipUpload}
+                        accept=".zip"
+                        label="Upload ZIP File"
                     />
-                    <Button onPress={handleCreateSession} color="primary">
-                        Create Session
-                    </Button>
                 </CardBody>
             </Card>
 
-            {/* Sessions Table */}
-            <Table aria-label="Sessions table with dynamic content">
+            {/* Folders Table */}
+            <Table aria-label="Folders table with dynamic content">
                 <TableHeader>
                     {columns.map((column) => (
                         <TableColumn key={column.key}>
@@ -77,40 +107,18 @@ const Home: NextPage = () => {
                     ))}
                 </TableHeader>
                 <TableBody>
-                    {sessions.map((session) => (
-                        <TableRow key={session.id}>
-                            <TableCell>{session.name}</TableCell>
-                            <TableCell>{session.date}</TableCell>
-                            <TableCell>
-                                <Chip
-                                    size="sm"
-                                    variant="flat"
-                                    color={
-                                        session.status === "active"
-                                            ? "success"
-                                            : session.status === "paused"
-                                            ? "danger"
-                                            : "warning"
-                                    }
-                                >
-                                    <span className="capitalize text-xs">
-                                        {session.status}
-                                    </span>
-                                </Chip>
-                            </TableCell>
+                    {folders.map((folder) => (
+                        <TableRow key={folder.id}>
+                            <TableCell>{folder.name}</TableCell>
+                            <TableCell>{folder.date}</TableCell>
                             <TableCell>
                                 <Button
                                     size="sm"
                                     onPress={() =>
-                                        console.log("View", session.id)
+                                        console.log("View", folder.id)
                                     }
                                 >
-                                    <Link
-                                        href={`/sessions/${session.id}`}
-                                        passHref
-                                    >
-                                        View
-                                    </Link>
+                                    View
                                 </Button>
                             </TableCell>
                         </TableRow>
