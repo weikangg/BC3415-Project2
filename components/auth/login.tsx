@@ -1,7 +1,7 @@
 "use client";
 
 import { createAuthCookie } from "@/actions/auth.action";
-import { LoginSchema } from "@/helpers/schemas";
+import { UserSchema } from "@/helpers/schemas";
 import { LoginFormType } from "@/helpers/types";
 import { Button, Input } from "@nextui-org/react";
 import { Formik } from "formik";
@@ -33,7 +33,7 @@ export const Login = () => {
 
       <Formik
         initialValues={initialValues}
-        validationSchema={LoginSchema}
+        validationSchema={UserSchema}
         onSubmit={handleLogin}>
         {({ values, errors, touched, handleChange, handleSubmit }) => (
           <>

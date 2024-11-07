@@ -25,7 +25,7 @@ export const Layout = ({ children }: Props) => {
         setCollapsed: handleToggleSidebar,
       }}>
       <section className='flex'>
-        <SidebarWrapper />
+        {/* <SidebarWrapper /> */}
         <NavbarWrapper>{children}</NavbarWrapper>
       </section>
     </SidebarContext.Provider>
