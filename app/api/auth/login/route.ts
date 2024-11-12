@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     );
     const user = userCredential.user;
     const idToken = await userCredential.user.getIdToken();
-    console.log("ID Token:", idToken);
+    console.log("user:", user);
     
     return NextResponse.json({
       message: "User logged in successfully",
