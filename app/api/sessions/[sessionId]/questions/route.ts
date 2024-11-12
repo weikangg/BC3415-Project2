@@ -5,9 +5,6 @@ import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { QuestionSchema } from "../../../../../helpers/schemas";
 import { OpenAI } from "openai";
-import Configuration from "openai";
-import fs from "fs";
-import path from "path";
 import { Buffer } from "buffer";
 
 // Initialize OpenAI API client
@@ -16,7 +13,7 @@ const openai = new OpenAI();
 async function getGptTextResponse(questionText: string): Promise<string> {
   // Define the messages array to match the expected type
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: "You are a helpful assistant." },
+    { role: "system", content: "You are a helpful teaching assistant who will provide guidance to the student but will not reveal the answer straight away." },
     { role: "user", content: "Answer this question: " + questionText },
   ];
 
@@ -29,17 +26,17 @@ async function getGptTextResponse(questionText: string): Promise<string> {
   return response.choices[0]?.message?.content || "No response from GPT-4";
 }
 
-// Helper function to get GPT-4 response for an image
-async function getGptImageResponse(base64Image: string): Promise<string> {
+// Helper function to get GPT-4 response for an image with an optional text prompt
+async function getGptImageResponse(base64Image: string, prompt: string = ""): Promise<string> {
+  // Create the messages array including the text prompt and image content
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     {
+      role: "system",
+      content: "You are a helpful assistant who provides detailed explanations of image content, taking into account any additional instructions provided.",
+    },
+    {
       role: "user",
-      content: [
-        {
-          type: "text",
-          text: "Explain in more detail the contents of this slide in terms of the concept",
-        },
-      ],
+      content: prompt ? `Explain the contents of this image in detail while taking into account the user's prompt: ${prompt}` : "Explain the contents of this image in detail.",
     },
     {
       role: "user",
@@ -61,6 +58,7 @@ async function getGptImageResponse(base64Image: string): Promise<string> {
 
   return response.choices[0]?.message?.content || "No response from GPT-4";
 }
+
 
 // Helper function to upload image to Firebase Storage, convert to Base64, and get GPT-4 Vision response
 async function handleImageQuestion(file: File): Promise<string> {
@@ -129,6 +127,7 @@ export async function POST(
         { status: 415 }
       );
     }
+    
 
     const questionData = {
       content: typeof content === "string" ? content : "", // Optional for image
