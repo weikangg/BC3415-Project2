@@ -13,11 +13,9 @@ import {
     TableRow,
     TableCell,
 } from "@nextui-org/react";
-import JSZip from "jszip";
 import Link from "next/link";
-import { db, storage } from "@/firebaseConfig";
-import { doc, setDoc, collection, getDocs } from "firebase/firestore";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { db } from "@/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 
 // Define the type for each folder and file
 type Folder = {

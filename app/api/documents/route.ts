@@ -14,7 +14,7 @@ async function uploadFileToStorage(
     const base64Data = fileContent.split(",")[1];
     const buffer = Buffer.from(base64Data, "base64");
 
-    const storageRef = ref(storage, `documents/${fileName}-${Date.now()}`);
+    const storageRef = ref(storage, documents/${fileName}-${Date.now()});
     const snapshot = await uploadBytes(storageRef, buffer);
     const downloadURL = await getDownloadURL(snapshot.ref);
     return downloadURL;
