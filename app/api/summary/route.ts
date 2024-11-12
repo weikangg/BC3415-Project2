@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { db } from "../../../firebaseConfig";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import fetch from "node-fetch";
-
+interface OpenAIResponse {
+  choices: { message: { content: string } }[];
+}
 // Helper function to generate summary using OpenAI API
 async function generateSummary(
   content: string,
@@ -36,7 +38,7 @@ async function generateSummary(
     throw new Error(`Failed to generate summary: ${await response.text()}`);
   }
 
-  const result = await response.json();
+  const result = (await response.json()) as OpenAIResponse;
   return result.choices[0]?.message?.content || "Summary generation failed";
 }
 
