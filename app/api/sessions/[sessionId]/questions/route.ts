@@ -13,7 +13,11 @@ const openai = new OpenAI();
 async function getGptTextResponse(questionText: string): Promise<string> {
   // Define the messages array to match the expected type
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: "You are a helpful teaching assistant who will provide guidance to the student but will not reveal the answer straight away." },
+    {
+      role: "system",
+      content:
+        "You are a helpful teaching assistant who will provide guidance to the student but will not reveal the answer straight away.",
+    },
     { role: "user", content: "Answer this question: " + questionText },
   ];
 
@@ -21,22 +25,25 @@ async function getGptTextResponse(questionText: string): Promise<string> {
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: messages,
+    max_completion_tokens: 3000,
   });
 
   return response.choices[0]?.message?.content || "No response from GPT-4";
 }
 
-// Helper function to get GPT-4 response for an image with an optional text prompt
-async function getGptImageResponse(base64Image: string, prompt: string = ""): Promise<string> {
-  // Create the messages array including the text prompt and image content
+async function getGptImageResponse(
+  base64Image: string,
+  prompt: string = ""
+): Promise<string> {
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     {
       role: "system",
-      content: "You are a helpful assistant who provides detailed explanations of image content, taking into account any additional instructions provided.",
+      content:
+        "You are a helpful assistant who provides detailed explanations of both image content and any additional instructions given by the user.",
     },
     {
       role: "user",
-      content: prompt ? `Explain the contents of this image in detail while taking into account the user's prompt: ${prompt}` : "Explain the contents of this image in detail.",
+      content: "Analyze the contents of this image in detail.",
     },
     {
       role: "user",
@@ -51,17 +58,26 @@ async function getGptImageResponse(base64Image: string, prompt: string = ""): Pr
     },
   ];
 
+  // Add an additional message specifically for the text prompt
+  if (prompt) {
+    console.log("Prompt:", prompt);
+    messages.push({
+      role: "user",
+      content: `Also, please address the following additional question: ${prompt}`,
+    });
+  }
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     messages,
+    max_completion_tokens: 3000,
   });
 
   return response.choices[0]?.message?.content || "No response from GPT-4";
 }
 
-
 // Helper function to upload image to Firebase Storage, convert to Base64, and get GPT-4 Vision response
-async function handleImageQuestion(file: File): Promise<string> {
+async function handleImageQuestion(file: File, prompt:string): Promise<string> {
   // Upload the image to Firebase Storage
   const storageRef = ref(storage, `question_images/${file.name}-${Date.now()}`);
   const snapshot = await uploadBytes(storageRef, file);
@@ -72,7 +88,7 @@ async function handleImageQuestion(file: File): Promise<string> {
   const base64Image = Buffer.from(arrayBuffer).toString("base64");
 
   // Get GPT-4 Vision response for the Base64 image
-  const gptResponse = await getGptImageResponse(base64Image);
+  const gptResponse = await getGptImageResponse(base64Image, prompt);
   return gptResponse;
 }
 
@@ -87,6 +103,7 @@ export async function POST(
     let content: string | File;
     let askedBy: string;
     let type: string;
+    let prompt = "";
     let answer = "";
     let answerType: "text" | "image" = "text";
 
@@ -111,9 +128,11 @@ export async function POST(
       content = formData.get("file") as File;
       askedBy = formData.get("askedBy") as string;
       type = formData.get("type") as string;
+      prompt = (formData.get("prompt") as string) || "";
+      console.log(`Prompt: ${prompt}`);
 
       if (type === "image" && content instanceof File) {
-        answer = await handleImageQuestion(content);
+        answer = await handleImageQuestion(content, prompt);
         answerType = "image";
       } else {
         return NextResponse.json(
@@ -127,7 +146,6 @@ export async function POST(
         { status: 415 }
       );
     }
-    
 
     const questionData = {
       content: typeof content === "string" ? content : "", // Optional for image
@@ -137,6 +155,7 @@ export async function POST(
       answer,
       answerType,
       createdAt: new Date(),
+      prompt,
     };
 
     await QuestionSchema.validate(questionData); // Validate with schema
