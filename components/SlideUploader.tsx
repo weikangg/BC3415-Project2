@@ -2,10 +2,9 @@
 import { useState } from "react";
 
 export default function SlideUploader() {
-    const [slides, setSlides] = useState([]);
-
-    const handleFileChange = (event) => {
-        const newFiles = Array.from(event.target.files);
+    const [slides, setSlides] = useState<File[]>([]);
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const newFiles = Array.from(event.target.files || []); // Handle potential null value for files
         setSlides((prevSlides) => [...prevSlides, ...newFiles]);
     };
 

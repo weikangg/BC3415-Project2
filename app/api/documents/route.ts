@@ -1,68 +1,95 @@
-// app/api/documents/route.ts
-import { NextResponse } from "next/server";
-import { db, storage } from "../../../firebaseConfig";
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "../../../firebaseConfig";
 import { collection, addDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { DocumentSchema } from "../../../helpers/schemas";
+import { promises as fs } from "fs";
+import { v4 as uuidv4 } from "uuid";
+import PDFParser from "pdf2json";
 
-// Helper function to upload file to Firebase Storage
-async function uploadFileToStorage(
-    fileContent: string,
-    fileName: string
-): Promise<string> {
-    // Decode base64 content if it starts with data URL scheme
-    const base64Data = fileContent.split(",")[1];
-    const buffer = Buffer.from(base64Data, "base64");
+// POST /api/documents - Upload Document and parse PDF content
+export async function POST(req: NextRequest) {
+  const formData = await req.formData();
+  const uploadedFiles = formData.getAll("file");
 
-    const storageRef = ref(storage, documents/${fileName}-${Date.now()});
-    const snapshot = await uploadBytes(storageRef, buffer);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    return downloadURL;
-}
+  let fileName = "";
+  let pagesContent: any = [];
 
-// POST /api/documents - Upload Document
-export async function POST(request: Request) {
-    try {
-        const formData = await request.formData();
-        const name = formData.get("name") as string;
-        const uploadedBy = formData.get("uploadedBy") as string;
-        const sessionId = formData.get("sessionId") as string;
-        const fileContent = formData.get("file") as string; // Expecting base64 string
-        const fileName = formData.get("fileName") as string; // Add field for file name
+  if (uploadedFiles && uploadedFiles.length > 0) {
+    const uploadedFile = uploadedFiles[0];
 
-        if (!name || !uploadedBy || !sessionId || !fileContent || !fileName) {
-            return NextResponse.json(
-                { error: "All fields are required" },
-                { status: 400 }
-            );
-        }
+    // Check if uploadedFile is of type File
+    if (uploadedFile instanceof File) {
+      // Generate a unique filename
+      fileName = uuidv4();
+      const tempFilePath = `/tmp/${fileName}.pdf`;
 
-        // Validate the input data using the DocumentSchema
-        await DocumentSchema.validate({ name, uploadedBy, sessionId });
+      // Convert ArrayBuffer to Buffer
+      const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
 
-        // Upload file to Firebase Storage
-        const downloadURL = await uploadFileToStorage(fileContent, fileName);
+      // Save the buffer as a file
+      await fs.writeFile(tempFilePath, fileBuffer);
 
-        // Save document metadata to Firestore with sessionId
-        const docRef = await addDoc(collection(db, "documents"), {
-            name,
-            uploadedBy,
-            downloadURL,
-            sessionId,
+      // Initialize pdf2json parser
+      const pdfParser = new (PDFParser as any)(null, 1);
+
+      // Parse PDF and split by page breaks
+      await new Promise((resolve, reject) => {
+        pdfParser.on("pdfParser_dataError", (errData: any) => {
+          console.error("Error parsing PDF:", errData.parserError);
+          reject(errData.parserError);
         });
 
-        return NextResponse.json({
-            id: docRef.id,
-            name,
-            uploadedBy,
-            downloadURL,
-            sessionId,
+        pdfParser.on("pdfParser_dataReady", () => {
+          const rawData = pdfParser.getRawTextContent();
+
+          // Split the content by page breaks
+          const pages = rawData.split(
+            /----------------Page \(\d+\) Break----------------/
+          );
+
+          // Map each page to an object with pageNumber and content
+          pages.forEach((pageContent: string, index: number) => {
+            pagesContent.push({
+              pageNumber: index + 1,
+              content: pageContent.trim(),
+              summary: "", // Empty summary placeholder
+              transcription: "", // Empty transcription placeholder
+            });
+          });
+
+          resolve(null);
         });
-    } catch (error: any) {
-        console.error("Error uploading document:", error);
-        return NextResponse.json(
-            { error: error.message || "Failed to upload document" },
-            { status: 400 }
-        );
+
+        pdfParser.loadPDF(tempFilePath);
+      });
+
+      // Delete the temporary file after parsing
+      await fs.unlink(tempFilePath);
+    } else {
+      console.log("Uploaded file is not in the expected format.");
     }
+  } else {
+    console.log("No files found.");
+  }
+
+  // Save document metadata and pages content in Firestore
+  try {
+    const docRef = await addDoc(collection(db, "documents"), {
+      name: fileName,
+      uploadedBy: formData.get("uploadedBy"),
+      sessionId: formData.get("sessionId"),
+      pages: pagesContent,
+    });
+
+    return NextResponse.json({
+      id: docRef.id,
+      name: fileName,
+      pages: pagesContent,
+    });
+  } catch (error) {
+    console.error("Error saving document:", error);
+    return NextResponse.json(
+      { error: "Failed to save document" },
+      { status: 500 }
+    );
+  }
 }
