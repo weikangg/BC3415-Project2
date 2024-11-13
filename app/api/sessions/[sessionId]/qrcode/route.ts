@@ -18,13 +18,13 @@ export async function GET(
     const sessionRef = doc(db, "sessions", sessionId);
     const sessionSnap = await getDoc(sessionRef);
 
-    if (!sessionSnap.exists()) {
-      return NextResponse.json({ error: "Session not found" }, { status: 404 });
-    }
+    // if (!sessionSnap.exists()) {
+    //   return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    // }
 
     // Generate a URL for the session that the QR code will point to
     const sessionData = sessionSnap.data();
-    const sessionURL = `https://bc-3415-project2.vercel.app/sessions/${sessionId}`; // TODO: CHANGE THIS LATER
+    const sessionURL = `https://bc-3415-project2.vercel.app/students/${sessionId}`; // TODO: CHANGE THIS LATER
 
     // Generate the QR code as a data URL
     const qrCodeDataUrl = await QRCode.toDataURL(sessionURL);
