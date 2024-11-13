@@ -39,6 +39,7 @@ async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     throw new Error(`Failed to transcribe audio: ${await response.text()}`);
   }
 
+  
   const result = (await response.json()) as OpenAIResponse;
   return result.text || "Transcription failed";
 }
