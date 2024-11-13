@@ -25,5 +25,6 @@ out/
 
 # OS-specific files
 Thumbs.db
-
+tmp/
 test/
+test.js

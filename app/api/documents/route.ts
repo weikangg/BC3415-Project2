@@ -1,95 +1,87 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "../../../firebaseConfig";
 import { collection, addDoc } from "firebase/firestore";
-import { promises as fs } from "fs";
 import { v4 as uuidv4 } from "uuid";
 import PDFParser from "pdf2json";
+import fetch from "node-fetch";
 
-// POST /api/documents - Upload Document and parse PDF content
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
-  const uploadedFiles = formData.getAll("file");
+  const uploadedFile = formData.get("file"); // Could be a URL or Blob
+  const fileName = formData.get("name") as string;
+  const fileType = formData.get("type") as string;
+  const sessionId = formData.get("sessionId") as string;
+  const uploadedBy = formData.get("uploadedBy") as string;
 
-  let fileName = "";
   let pagesContent: any = [];
+  let fileUrl = "";
 
-  if (uploadedFiles && uploadedFiles.length > 0) {
-    const uploadedFile = uploadedFiles[0];
+  if (typeof uploadedFile === "string") {
+    fileUrl = uploadedFile;
 
-    // Check if uploadedFile is of type File
-    if (uploadedFile instanceof File) {
-      // Generate a unique filename
-      fileName = uuidv4();
-      const tempFilePath = `/tmp/${fileName}.pdf`;
+    try {
+      if (fileType === "pdf") {
+        const response = await fetch(fileUrl);
+        if (!response.ok)
+          throw new Error(`Failed to download file from URL: ${fileUrl}`);
 
-      // Convert ArrayBuffer to Buffer
-      const fileBuffer = Buffer.from(await uploadedFile.arrayBuffer());
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const pdfParser = new PDFParser();
 
-      // Save the buffer as a file
-      await fs.writeFile(tempFilePath, fileBuffer);
+        // Store the number of pages here
+        let pageCount = 0;
 
-      // Initialize pdf2json parser
-      const pdfParser = new (PDFParser as any)(null, 1);
-
-      // Parse PDF and split by page breaks
-      await new Promise((resolve, reject) => {
-        pdfParser.on("pdfParser_dataError", (errData: any) => {
-          console.error("Error parsing PDF:", errData.parserError);
-          reject(errData.parserError);
-        });
-
-        pdfParser.on("pdfParser_dataReady", () => {
-          const rawData = pdfParser.getRawTextContent();
-
-          // Split the content by page breaks
-          const pages = rawData.split(
-            /----------------Page \(\d+\) Break----------------/
-          );
-
-          // Map each page to an object with pageNumber and content
-          pages.forEach((pageContent: string, index: number) => {
-            pagesContent.push({
-              pageNumber: index + 1,
-              content: pageContent.trim(),
-              summary: "", // Empty summary placeholder
-              transcription: "", // Empty transcription placeholder
-            });
+        await new Promise((resolve, reject) => {
+          pdfParser.on("pdfParser_dataError", (errData) => {
+            console.error("Error parsing PDF:", errData.parserError);
+            reject(errData.parserError);
           });
 
-          resolve(null);
+          pdfParser.on("pdfParser_dataReady", (pdfData) => {
+            // Get the number of pages
+            pageCount = pdfData.Pages.length;
+            console.log(`Total Pages in PDF: ${pageCount}`);
+            
+            // Create an array with empty summary and transcription for each page
+            for (let i = 0; i < pageCount; i++) {
+              pagesContent.push({
+                pageNumber: i + 1,
+                summary: "",
+                transcription: "",
+              });
+            }
+
+            resolve(null);
+          });
+
+          pdfParser.parseBuffer(buffer);
         });
-
-        pdfParser.loadPDF(tempFilePath);
-      });
-
-      // Delete the temporary file after parsing
-      await fs.unlink(tempFilePath);
-    } else {
-      console.log("Uploaded file is not in the expected format.");
+      } else {
+        console.log(`Skipping parsing for non-PDF file type: ${fileType}`);
+      }
+    } catch (error) {
+      console.error("Error downloading or processing file from URL:", error);
+      return NextResponse.json(
+        { error: "Failed to download or process file" },
+        { status: 500 }
+      );
     }
   } else {
-    console.log("No files found.");
-  }
-
-  // Save document metadata and pages content in Firestore
-  try {
-    const docRef = await addDoc(collection(db, "documents"), {
-      name: fileName,
-      uploadedBy: formData.get("uploadedBy"),
-      sessionId: formData.get("sessionId"),
-      pages: pagesContent,
-    });
-
-    return NextResponse.json({
-      id: docRef.id,
-      name: fileName,
-      pages: pagesContent,
-    });
-  } catch (error) {
-    console.error("Error saving document:", error);
-    return NextResponse.json(
-      { error: "Failed to save document" },
-      { status: 500 }
+    console.error(
+      "Invalid file format: file is neither a Blob nor a URL string"
     );
+    return NextResponse.json({ error: "Invalid file format" }, { status: 400 });
   }
+
+  // Save document metadata in Firestore
+  const docRef = await addDoc(collection(db, "documents"), {
+    name: fileName,
+    uploadedBy,
+    sessionId,
+    type: fileType,
+    pages: pagesContent, // Array with empty summary and transcription fields
+    url: fileUrl.toString(),
+  });
+
+  return NextResponse.json({ id: docRef.id });
 }

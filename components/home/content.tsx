@@ -21,50 +21,47 @@ export const Content = () => {
   
   const handleSubmit = async () => {
     if (!question && !uploadedFile) return;
-
+  
     setLoading(true);
-
+  
+    // Add user's question to the chat history
     if (question) {
       setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
     } else if (uploadedFile) {
-      setChatHistory((prev) => [...prev, { sender: "user", message: "Uploaded file" }]);
+      setChatHistory((prev) => [...prev, { sender: "user", message: "Uploaded image" }]);
     }
-
+  
     try {
-      let imageContent = "";
-
+      let response;
+      
       if (uploadedFile) {
-        imageContent = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            if (typeof reader.result === "string") {
-              resolve(reader.result); // Only resolve if result is a string
-            } else {
-              reject(new Error("File content is not a string"));
-            }
-          };
-          reader.onerror = () => reject(new Error("Failed to read image file"));
-          reader.readAsDataURL(uploadedFile); // Reads image file as Data URL
+        // If there is an image file (with or without text), use FormData
+        const formData = new FormData();
+        formData.append("content", `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question || ""}`);
+        formData.append("askedBy", "student123"); // Replace with dynamic user ID if available
+        formData.append("type", "image");
+        formData.append("file", uploadedFile); // Append the image file
+  
+        response = await fetch("/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
+          method: "POST",
+          body: formData,
         });
-      }
+      } else {
+        // If only text is present, use JSON payload
+        const payload = {
+          content: `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question}`,
+          askedBy: "student123",
+          type: "text",
+        };
   
-      // Prepare the payload, including question and image content if available
-      const payload = {
-        content: `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question || ""}\n\nImage Content:\n${imageContent || ""}`,
-        askedBy: "student123", // Replace with dynamic user ID if available
-        type: uploadedFile ? "image" : "text",
-      };
-  
-      const response = await fetch(
-        "https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions",
-        {
+        response = await fetch("/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
-        }
-      );
+        });
+      }
   
       if (!response.ok) {
         throw new Error("Failed to fetch response from the API");
@@ -84,57 +81,94 @@ export const Content = () => {
     setQuestion("");
     setUploadedFile(null);
   };
+  
+  
 
   return (
-    <div className="h-full lg:px-6 flex flex-col items-center gap-6">
+    <div style={{ height: '100%', paddingLeft: '1.5rem', paddingRight: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', marginTop:'3rem' }}>
+      <h1 style={{fontFamily:"Sans-Serif", fontWeight:'800', fontSize:'30px'}}>Student's Helper Page</h1>
+      
       {/* Main Chat Box Container */}
-      <div className="w-full max-w-2xl p-5 border rounded-lg shadow-md flex flex-col gap-4 bg-gray-50">
-        <h1 style={{color:'black'}}>Chat History</h1>
+      <div style={{ width: '100%', maxWidth: '42rem', padding: '1.25rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <h1 style={{ color: 'white', fontFamily:"Sans-Serif", fontWeight:'800', fontSize:'22px' }}>Chat History</h1>
+        
         {/* Chat History Display */}
-        <div className="overflow-y-auto max-h-[300px] flex flex-col gap-4" style={{minHeight:'10rem', border:'1px grey solid', borderRadius:'0.5rem'}}>
-          {chatHistory.map((entry, index) => (
+        <div style={{ overflowY: 'auto', maxHeight: '18.75rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '10rem', border: '0.3px solid grey', borderRadius: '0.5rem', backgroundColor:'#27272A', padding:'1rem 0 1rem 0' }}>
+        {chatHistory.map((entry, index) => (
             <div
               key={index}
-              className={`p-3 rounded-md ${
-                entry.sender === "user" ? "bg-blue-100 text-blue-900" : "bg-gray-200 text-gray-900"
-              }`}
+              style={{
+                padding: '0.75rem',
+                borderRadius: '0.5rem',
+                backgroundColor: entry.sender === "user" ? '#bfdbfe' : '#e5e7eb',
+                color: entry.sender === "user" ? '#1e3a8a' : '#374151',
+                width: 'auto',
+                alignSelf: entry.sender === "user" ? 'flex-end' : 'flex-start', // Align user to right, AI to left
+                textAlign: entry.sender === "user" ? 'right' : 'left', // Text alignment
+                marginLeft: entry.sender === "user" ? '0rem' : '1rem', // Padding from left for AI
+                marginRight: entry.sender === "user" ? '1rem' : '0rem', // Padding from right for user
+              }}
             >
-              <strong>{entry.sender === "user" ? "You" : "AI"}:</strong> {entry.message}
+              <strong>{entry.sender === "user" ? "You" : "Professor Gu"}:</strong> {entry.message}
             </div>
           ))}
-          {loading && <p className="text-gray-500">Generating response...</p>}
+          {loading && <p style={{ color: 'white' }}>Generating response...</p>}
         </div>
-  
+
         {/* Divider */}
-        <hr className="my-4" />
-  
+        <hr style={{ margin: '1rem 0' }} />
+
         {/* Question and File Upload Section */}
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          {/* Question Input */}
-          <div className="flex-1">
-            <textarea
-              className="w-full p-2 border border-gray-300 rounded-md h-12 bg-white text-black"
-              placeholder="Type your question here..."
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-            />
-          </div>
-  
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexDirection: 'row' }}>
+            <div style={{ flex: '1' }}>
+              <textarea
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '0.5rem',
+                  height: '3rem',
+                  backgroundColor: '#27272A',
+                  color: 'white'
+                }}
+                placeholder="Ask me anything!!"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+              />
+            </div>
+
           {/* File Upload Input */}
-          <div className="flex-1">
+          <div style={{ flex: '1' }}>
             <input
               type="file"
               accept="image/*"
-              className="w-full p-2 border border-gray-300 rounded-md h-12 cursor-pointer text-black"
+              style={{
+                marginTop:'-0.4rem',
+                width: '100%',
+                padding: '0.5rem',
+                border: '1px solid #d1d5db',
+                borderRadius: '0.5rem',
+                height: '3rem',
+                cursor: 'pointer',
+                color: 'white',
+                backgroundColor:'#27272A'
+              }}
               onChange={handleFileUpload}
             />
           </div>
         </div>
-  
+
         {/* Submit Button */}
-        <div className="flex justify-end mt-4">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
           <button
-            className="bg-blue-500 text-white px-6 py-2 rounded-md hover:bg-blue-600"
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              padding: '0.5rem 1.5rem',
+              borderRadius: '0.5rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s',
+            }}
             onClick={handleSubmit}
             disabled={loading}
           >
@@ -143,6 +177,7 @@ export const Content = () => {
         </div>
       </div>
     </div>
+
   );
   
 };

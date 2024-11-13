@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       message: "User registered successfully",
       userId: user.uid,
       name: name,
+      username: username,
       email: email,
       firestoreId: userRef.id,
     });
