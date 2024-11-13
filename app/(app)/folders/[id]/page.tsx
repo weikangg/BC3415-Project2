@@ -274,6 +274,7 @@ const FolderDetail = () => {
                     alignItems: "center",
                     alignSelf: "center",
                     gap: "1rem",
+                    marginBottom:'2rem',
                 }}
             >
                 <div
@@ -290,7 +291,6 @@ const FolderDetail = () => {
                         alignItems: "center",
                         gap: "1rem",
                         backgroundColor: "#1f2937",
-                        marginBottom:'2rem',
                     }}
                 >
                     <h1
