@@ -4,37 +4,38 @@ import { useEffect, useState, useRef } from "react";
 import { db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { Document, Page, pdfjs } from "react-pdf";
-
+import "react-pdf/dist/Page/TextLayer.css";
+import { CircularProgress } from "@nextui-org/progress";
 // Set up the worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-// Define the type for each file
 type DocumentFile = {
     name: string;
     type: string;
-    url: string; // URL for files to display or link to the file content
+    url: string;
 };
 
-// Define the type for each folder
 type Folder = {
     id: string;
     name: string;
     date: string;
-    files: DocumentFile[]; // Each file, such as PDF, doc, etc.
-    sessionId: string; // Session ID for the folder
+    files: DocumentFile[];
+    sessionId: string;
 };
 
 const FolderDetail = () => {
     const params = useParams();
-    const id = params.id; // Access the folder ID from the route params
+    const id = params.id;
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [folder, setFolder] = useState<Folder | null>(null);
-    const [numPages, setNumPages] = useState<number | null>(null); // Track number of pages for the PDF
-    const [pdfBlob, setPdfBlob] = useState<string | null>(null); // Track the PDF blob URL
+    const [numPages, setNumPages] = useState<number | null>(null);
+    const [pdfBlob, setPdfBlob] = useState<string | null>(null);
     const [recordings, setRecordings] = useState<{ [key: number]: string }>({});
     const [transcriptions, setTranscriptions] = useState<{
         [key: number]: string;
     }>({});
+    const [summaries, setSummaries] = useState<{ [key: number]: string }>({});
+    const [textLayers, setTextLayers] = useState<{ [key: number]: string }>({});
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentRecordingPage, setCurrentRecordingPage] = useState<
         number | null
@@ -46,7 +47,7 @@ const FolderDetail = () => {
 
     const generateQRCode = async () => {
         try {
-            console.log(id)
+            console.log(id);
             const response = await fetch(`/api/sessions/${id}/qrcode`);
             // const response = await fetch(`/api/sessions/HxHLPMlzfeGtLzjFVX9r/qrcode`);
             // const response = await fetch(`/api/sessions/1HtIY4Mln3ZY2DRju3m2/qrcode`);
@@ -64,31 +65,33 @@ const FolderDetail = () => {
         // Set loading state to true
         setLoading(true);
         setError(null);
-    
-        try {
-        // Make a GET request to the insights endpoint
-        const response = await fetch(`/api/sessions/HxHLPMlzfeGtLzjFVX9r/insights`, {
-            method: "GET",
-        });
-    
-        if (!response.ok) {
-            throw new Error("Failed to generate insights");
-        }
-    
-        // Parse the response JSON
-        const data = await response.json();
-    
-        // Update the insights state with the generated insights
-        setInsights(data.insights);
-        } catch (error) {
-        console.error("Error generating insights:", error);
-        // setError("There was an error generating insights. Please try again.");
-        } finally {
-        // Set loading state to false
-        setLoading(false);
-        }
-    }
 
+        try {
+            // Make a GET request to the insights endpoint
+            const response = await fetch(
+                `/api/sessions/HxHLPMlzfeGtLzjFVX9r/insights`,
+                {
+                    method: "GET",
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Failed to generate insights");
+            }
+
+            // Parse the response JSON
+            const data = await response.json();
+
+            // Update the insights state with the generated insights
+            setInsights(data.insights);
+        } catch (error) {
+            console.error("Error generating insights:", error);
+            // setError("There was an error generating insights. Please try again.");
+        } finally {
+            // Set loading state to false
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -118,7 +121,7 @@ const FolderDetail = () => {
                 const pdfFile = folder.files.find(
                     (file) => file.type === "pdf"
                 );
-                setSessionId(folder.sessionId); // Set the session ID for the folder
+                setSessionId(folder.sessionId);
                 if (pdfFile) {
                     try {
                         const response = await fetch(pdfFile.url);
@@ -150,7 +153,7 @@ const FolderDetail = () => {
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
                 audioChunksRef.current = [];
-                setCurrentRecordingPage(pageNumber); // Set the current recording page
+                setCurrentRecordingPage(pageNumber);
 
                 mediaRecorder.ondataavailable = (event) => {
                     audioChunksRef.current.push(event.data);
@@ -165,9 +168,8 @@ const FolderDetail = () => {
                         ...prevRecordings,
                         [pageNumber]: audioURL,
                     }));
-                    setCurrentRecordingPage(null); // Clear current recording page after stop
+                    setCurrentRecordingPage(null);
 
-                    // Convert audioBlob to File and send it to the transcribe API
                     const audioFile = new File([audioBlob], "audio.mp3", {
                         type: "audio/mp3",
                     });
@@ -212,119 +214,259 @@ const FolderDetail = () => {
                 ...prevTranscriptions,
                 [pageNumber]: transcription,
             }));
+
+            if (textLayers[pageNumber]) {
+                await sendSummaryRequest(
+                    textLayers[pageNumber],
+                    transcription,
+                    pageNumber
+                );
+            }
         } catch (error) {
             console.error("Error transcribing audio:", error);
         }
     };
 
+    const sendSummaryRequest = async (
+        content: string,
+        transcription: string,
+        pageNumber: number
+    ) => {
+        try {
+            const response = await fetch("/api/summary", {
+                method: "POST",
+                body: JSON.stringify({
+                    documentId: sessionId,
+                    pageNumber,
+                    content,
+                    transcription,
+                }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to generate summary: ${await response.text()}`
+                );
+            }
+
+            const { summary } = await response.json();
+            console.log("Summary:", summary);
+            setSummaries((prevSummaries) => ({
+                ...prevSummaries,
+                [pageNumber]: summary,
+            }));
+        } catch (error) {
+            console.error("Error generating summary:", error);
+        }
+    };
+
     if (!folder) return <p>Loading...</p>;
 
-    
-
     return (
-        <div className="container mx-auto p-4" >
-            <div style={{display:'flex', justifyContent:'center', alignItems:'center', alignSelf:'center', gap:'1rem'}}>
-
-                <div
+        <div className="container mx-auto p-4">
+            <div
                 style={{
-                    width: '100%',
-                    maxWidth: '42rem',
-                    padding: '1.25rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.5rem',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    backgroundColor: '#1f2937',
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    alignSelf: "center",
+                    gap: "1rem",
                 }}
-                >
-                <h1 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '800', fontSize: '22px' }}>
-                    Session QR Code Generator
-                </h1>
-                <h2 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '400', fontSize: '15px', textAlign: 'center' }}>
-                    Generate a QR code to share this session with participants
-                </h2>
-
-                <button
-                    onClick={generateQRCode}
+            >
+                <div
                     style={{
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    padding: '0.5rem 1.5rem',
-                    borderRadius: '0.5rem',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    transition: 'background-color 0.2s',
-                    border: 'none',
-                    fontSize: '16px',
-                    fontWeight: '600',
+                        width: "100%",
+                        maxWidth: "42rem",
+                        padding: "1.25rem",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "0.5rem",
+                        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "1rem",
+                        backgroundColor: "#1f2937",
                     }}
-                    disabled={loading}
                 >
-                    {loading ? "Generating..." : "Create Session QR (SQR)"}
-                </button>
-
-                {qrCodeUrl && (
-                    <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                    <h3 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '600', fontSize: '18px' }}>
-                        Session QR Code
-                    </h3>
-                    <img
-                        src={qrCodeUrl}
-                        alt="Session QR Code"
+                    <h1
                         style={{
-                        border: '2px solid #d1d5db',
-                        borderRadius: '0.5rem',
-                        marginTop: '1rem',
-                        padding: '0.5rem',
-                        backgroundColor: 'white',
+                            color: "white",
+                            fontFamily: "Sans-Serif",
+                            fontWeight: "800",
+                            fontSize: "22px",
                         }}
-                    />
-                    </div>
-                )}
-                </div>
-                
-                {/* Insight Generation */}
+                    >
+                        Session QR Code Generator
+                    </h1>
+                    <h2
+                        style={{
+                            color: "white",
+                            fontFamily: "Sans-Serif",
+                            fontWeight: "400",
+                            fontSize: "15px",
+                            textAlign: "center",
+                        }}
+                    >
+                        Generate a QR code to share this session with
+                        participants
+                    </h2>
 
-                <div style={{ width: '100%', maxWidth: '42rem', padding: '1.25rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor:'#1f2937', height:'28rem' }}>
-                    <h1 style={{ color: 'white', fontFamily:"Sans-Serif", fontWeight:'800', fontSize:'22px' }}>Insight Generation</h1>
-                    <h1 style={{ color: 'white', fontFamily:"Sans-Serif", fontWeight:'400', fontSize:'15px' }}>Get some insight into what students are asking</h1>
-                    
-                    {/* Chat History Display */}
-                    <div style={{ overflowY: 'auto', maxHeight: '18.75rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '10rem', border: '0.3px solid grey', borderRadius: '0.5rem', backgroundColor:'#27272A', padding:'1rem 1rem 1rem 1rem' }}>
-                    {error && <p style={{ color: "red" }}>{error}</p>}
-                    {insights && (
-                        <div style={{ color: 'white', marginTop: '1rem', lineHeight: '1.6' }}>
-                        {/* Split insights by numbers followed by periods to identify list items */}
-                        {insights.split(/\d+\.\s/).map((paragraph, index) => (
-                            paragraph && ( // Ensure we don't render empty paragraphs
-                            <p key={index} style={{ marginBottom: '1rem', textIndent: '1rem' }}>
-                                {index + 1}. {paragraph.trim()}
-                            </p>
-                            )
-                        ))}
+                    <button
+                        onClick={generateQRCode}
+                        style={{
+                            backgroundColor: "#3b82f6",
+                            color: "white",
+                            padding: "0.5rem 1.5rem",
+                            borderRadius: "0.5rem",
+                            cursor: loading ? "not-allowed" : "pointer",
+                            transition: "background-color 0.2s",
+                            border: "none",
+                            fontSize: "16px",
+                            fontWeight: "600",
+                        }}
+                        disabled={loading}
+                    >
+                        {loading ? "Generating..." : "Create Session QR (SQR)"}
+                    </button>
+
+                    {qrCodeUrl && (
+                        <div style={{ textAlign: "center", marginTop: "1rem" }}>
+                            <h3
+                                style={{
+                                    color: "white",
+                                    fontFamily: "Sans-Serif",
+                                    fontWeight: "600",
+                                    fontSize: "18px",
+                                }}
+                            >
+                                Session QR Code
+                            </h3>
+                            <img
+                                src={qrCodeUrl}
+                                alt="Session QR Code"
+                                style={{
+                                    border: "2px solid #d1d5db",
+                                    borderRadius: "0.5rem",
+                                    marginTop: "1rem",
+                                    padding: "0.5rem",
+                                    backgroundColor: "white",
+                                }}
+                            />
                         </div>
                     )}
-                    {loading && <p style={{ color: 'white' }}>Generating response...</p>}
+                </div>
+
+                {/* Insight Generation */}
+
+                <div
+                    style={{
+                        width: "100%",
+                        maxWidth: "42rem",
+                        padding: "1.25rem",
+                        border: "1px solid #d1d5db",
+                        borderRadius: "0.5rem",
+                        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "1rem",
+                        backgroundColor: "#1f2937",
+                        height: "28rem",
+                    }}
+                >
+                    <h1
+                        style={{
+                            color: "white",
+                            fontFamily: "Sans-Serif",
+                            fontWeight: "800",
+                            fontSize: "22px",
+                        }}
+                    >
+                        Insight Generation
+                    </h1>
+                    <h1
+                        style={{
+                            color: "white",
+                            fontFamily: "Sans-Serif",
+                            fontWeight: "400",
+                            fontSize: "15px",
+                        }}
+                    >
+                        Get some insight into what students are asking
+                    </h1>
+
+                    {/* Chat History Display */}
+                    <div
+                        style={{
+                            overflowY: "auto",
+                            maxHeight: "18.75rem",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "1rem",
+                            minHeight: "10rem",
+                            border: "0.3px solid grey",
+                            borderRadius: "0.5rem",
+                            backgroundColor: "#27272A",
+                            padding: "1rem 1rem 1rem 1rem",
+                        }}
+                    >
+                        {error && <p style={{ color: "red" }}>{error}</p>}
+                        {insights && (
+                            <div
+                                style={{
+                                    color: "white",
+                                    marginTop: "1rem",
+                                    lineHeight: "1.6",
+                                }}
+                            >
+                                {/* Split insights by numbers followed by periods to identify list items */}
+                                {insights.split(/\d+\.\s/).map(
+                                    (paragraph, index) =>
+                                        paragraph && ( // Ensure we don't render empty paragraphs
+                                            <p
+                                                key={index}
+                                                style={{
+                                                    marginBottom: "1rem",
+                                                    textIndent: "1rem",
+                                                }}
+                                            >
+                                                {index + 1}. {paragraph.trim()}
+                                            </p>
+                                        )
+                                )}
+                            </div>
+                        )}
+                        {loading && (
+                            <p style={{ color: "white" }}>
+                                Generating response...
+                            </p>
+                        )}
                     </div>
 
                     {/* Submit Button */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                    <button
+                    <div
                         style={{
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        padding: '0.5rem 1.5rem',
-                        borderRadius: '0.5rem',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        transition: 'background-color 0.2s',
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            marginTop: "1rem",
                         }}
-                        onClick={handleInsightGeneration}
-                        disabled={loading}
                     >
-                        {loading ? "Generating..." : "Generate Insights"}
-                    </button>
+                        <button
+                            style={{
+                                backgroundColor: "#3b82f6",
+                                color: "white",
+                                padding: "0.5rem 1.5rem",
+                                borderRadius: "0.5rem",
+                                cursor: loading ? "not-allowed" : "pointer",
+                                transition: "background-color 0.2s",
+                            }}
+                            onClick={handleInsightGeneration}
+                            disabled={loading}
+                        >
+                            {loading ? "Generating..." : "Generate Insights"}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -361,11 +503,34 @@ const FolderDetail = () => {
                                                 pageNumber={index + 1}
                                                 width={500}
                                                 renderAnnotationLayer={false}
-                                                renderTextLayer={false}
+                                                renderTextLayer={true}
                                                 className="mx-auto w-1/3"
+                                                onGetTextSuccess={(
+                                                    textContent
+                                                ) => {
+                                                    const text =
+                                                        textContent.items
+                                                            .map((item) => {
+                                                                if (
+                                                                    "str" in
+                                                                    item
+                                                                ) {
+                                                                    return item.str;
+                                                                }
+                                                                return "";
+                                                            })
+                                                            .join(" ");
+
+                                                    setTextLayers(
+                                                        (prevTextLayers) => ({
+                                                            ...prevTextLayers,
+                                                            [index + 1]: text,
+                                                        })
+                                                    );
+                                                }}
                                             />
                                         </td>
-                                        <td className="py-2 px-4 text-center w-1/3">
+                                        <td className="py-2 px-4 text-center w-1/3 border">
                                             <div className="flex flex-col items-center">
                                                 {isRecording &&
                                                 currentRecordingPage ===
@@ -401,7 +566,7 @@ const FolderDetail = () => {
                                                 )}
                                                 {transcriptions[index + 1] && (
                                                     <textarea
-                                                        className="mt-2 border rounded p-2 w-3/4 mx-auto text-center" // Center the textarea
+                                                        className="mt-2 border rounded p-2 w-3/4 mx-auto text-center"
                                                         rows={3}
                                                         readOnly
                                                         value={
@@ -415,7 +580,13 @@ const FolderDetail = () => {
                                             </div>
                                         </td>
                                         <td className="py-2 px-4 text-center w-1/3">
-                                            Generating Notes...
+                                            {recordings[index + 1]
+                                                ? summaries[index + 1] || (
+                                                      <div className="flex justify-center items-center h-full">
+                                                          <CircularProgress aria-label="Loading..." />
+                                                      </div>
+                                                  )
+                                                : "Please record an audio"}
                                         </td>
                                     </tr>
                                 ))}
