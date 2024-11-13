@@ -401,7 +401,7 @@ const FolderDetail = () => {
                     <div
                         style={{
                             overflowY: "auto",
-                            maxHeight: "18.75rem",
+                            height: "18.75rem",
                             display: "flex",
                             flexDirection: "column",
                             gap: "1rem",
