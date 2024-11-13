@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
             // Get the number of pages
             pageCount = pdfData.Pages.length;
             console.log(`Total Pages in PDF: ${pageCount}`);
+            
             // Create an array with empty summary and transcription for each page
             for (let i = 0; i < pageCount; i++) {
               pagesContent.push({
