@@ -21,52 +21,47 @@ export const Content = () => {
   
   const handleSubmit = async () => {
     if (!question && !uploadedFile) return;
-
+  
     setLoading(true);
-
+  
+    // Add user's question to the chat history
     if (question) {
       setChatHistory((prev) => [...prev, { sender: "user", message: question }]);
     } else if (uploadedFile) {
-      setChatHistory((prev) => [...prev, { sender: "user", message: "Uploaded file" }]);
+      setChatHistory((prev) => [...prev, { sender: "user", message: "Uploaded image" }]);
     }
-
+  
     try {
-      let imageContent = "";
-
+      let response;
+      
       if (uploadedFile) {
-        imageContent = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            if (typeof reader.result === "string") {
-              resolve(reader.result); // Only resolve if result is a string
-            } else {
-              reject(new Error("File content is not a string"));
-            }
-          };
-          reader.onerror = () => reject(new Error("Failed to read image file"));
-          reader.readAsDataURL(uploadedFile); // Reads image file as Data URL
+        // If there is an image file (with or without text), use FormData
+        const formData = new FormData();
+        formData.append("content", `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question || ""}`);
+        formData.append("askedBy", "student123"); // Replace with dynamic user ID if available
+        formData.append("type", "image");
+        formData.append("file", uploadedFile); // Append the image file
+  
+        response = await fetch("/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
+          method: "POST",
+          body: formData,
         });
-      }
+      } else {
+        // If only text is present, use JSON payload
+        const payload = {
+          content: `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question}`,
+          askedBy: "student123",
+          type: "text",
+        };
   
-      // Prepare the payload, including question and image content if available
-      const payload = {
-        file: uploadedFile,
-        content: ``,
-        askedBy: "student123", // Replace with dynamic user ID if available
-        type: "image",
-        prompt: `I am a student asking questions wanting to learn. Do not give me the answer immediately but guide me in the correct direction. ${question || ""}\n\nImage Content:\n${imageContent || ""}`,
-      };
-  
-      const response = await fetch(
-        "https://bc-3415-project2.vercel.app/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions",
-        {
+        response = await fetch("/api/sessions/HxHLPMlzfeGtLzjFVX9r/questions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(payload),
-        }
-      );
+        });
+      }
   
       if (!response.ok) {
         throw new Error("Failed to fetch response from the API");
@@ -86,6 +81,8 @@ export const Content = () => {
     setQuestion("");
     setUploadedFile(null);
   };
+  
+  
 
   return (
     <div style={{ height: '100%', paddingLeft: '1.5rem', paddingRight: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', marginTop:'3rem' }}>
