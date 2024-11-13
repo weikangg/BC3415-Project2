@@ -5,6 +5,9 @@ import { db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { Document, Page, pdfjs } from "react-pdf";
 
+// Set up the worker for react-pdf
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 // Define the type for each file
 type File = {
     name: string;
@@ -25,6 +28,7 @@ const FolderDetail = () => {
     const id = params.id; // Access the folder ID from the route params
     const [folder, setFolder] = useState<Folder | null>(null);
     const [numPages, setNumPages] = useState<number | null>(null); // Track number of pages for the PDF
+    const [pdfBlob, setPdfBlob] = useState<string | null>(null); // Track the PDF blob URL
 
     useEffect(() => {
         if (!id) return;
@@ -49,6 +53,29 @@ const FolderDetail = () => {
         fetchFolderData();
     }, [id]);
 
+    // Fetch PDF blob when folder and PDF file exist
+    useEffect(() => {
+        const fetchPdfBlob = async () => {
+            if (folder) {
+                const pdfFile = folder.files.find(
+                    (file) => file.type === "pdf"
+                );
+                if (pdfFile) {
+                    try {
+                        const response = await fetch(pdfFile.url);
+                        const blob = await response.blob();
+                        const blobURL = URL.createObjectURL(blob);
+                        setPdfBlob(blobURL);
+                    } catch (error) {
+                        console.error("Error fetching PDF blob:", error);
+                    }
+                }
+            }
+        };
+
+        fetchPdfBlob();
+    }, [folder]);
+
     // Callback for successful PDF load, to retrieve total pages
     function onDocumentLoadSuccess({
         numPages: loadedPages,
@@ -60,52 +87,58 @@ const FolderDetail = () => {
 
     if (!folder) return <p>Loading...</p>;
 
-    // Find the first PDF file in folder.files
-    const pdfFile = folder.files.find((file) => file.type === "pdf");
-
     return (
         <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-4">{folder.name}</h1>
             <p>Date Created: {folder.date}</p>
 
-            <table className="min-w-full bg-white border border-gray-300">
-                <thead>
-                    <tr>
-                        <th className="py-2 px-4 border-b">Page Number</th>
-                        <th className="py-2 px-4 border-b">Preview</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {pdfFile ? (
-                        <Document
-                            file={pdfFile.url}
-                            onLoadSuccess={onDocumentLoadSuccess}
-                            loading="Loading PDF..."
-                        >
+            {pdfBlob ? (
+                <Document
+                    file={pdfBlob}
+                    onLoadSuccess={onDocumentLoadSuccess}
+                    loading="Loading PDF..."
+                    onLoadError={(error) =>
+                        console.error("Error loading PDF:", error)
+                    }
+                    className="border p-0 mx-auto" // Center Document and remove padding
+                >
+                    <table className="min-w-full bg-white border border-gray-300">
+                        <thead>
+                            <tr>
+                                <th className="py-2 px-4 border-b">Slides</th>
+                                <th className="py-2 px-4 border-b">
+                                    Recordings
+                                </th>
+                                <th className="py-2 px-4 border-b">Summary</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             {numPages &&
                                 Array.from({ length: numPages }, (_, index) => (
-                                    <tr key={index} className="border-b">
+                                    <tr key={index} className="border-b-5">
                                         <td className="py-2 px-4 text-center">
-                                            Page {index + 1}
-                                        </td>
-                                        <td className="py-2 px-4">
                                             <Page
                                                 pageNumber={index + 1}
-                                                width={300}
+                                                width={500} // Adjust the width as needed
+                                                renderAnnotationLayer={false} // Disable annotations
+                                                renderTextLayer={false} // Disable text layer
+                                                className="mx-auto w-1/3 border-b-5" // Center Page within cell
                                             />
+                                        </td>
+                                        <td className="py-2 px-4 text-center w-1/3 border border-b-5">
+                                            Add recording
+                                        </td>
+                                        <td className="py-2 px-4 text-center w-1/3 border border-b-5">
+                                            Generating Notes..
                                         </td>
                                     </tr>
                                 ))}
-                        </Document>
-                    ) : (
-                        <tr>
-                            <td colSpan={2} className="py-2 px-4 text-center">
-                                No PDF available or loading...
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
+                        </tbody>
+                    </table>
+                </Document>
+            ) : (
+                <p className="text-center">No PDF available or loading...</p>
+            )}
         </div>
     );
 };
