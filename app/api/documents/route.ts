@@ -40,8 +40,7 @@ export async function POST(req: NextRequest) {
           pdfParser.on("pdfParser_dataReady", (pdfData) => {
             // Get the number of pages
             pageCount = pdfData.Pages.length;
-            console.log(`Total Pages in PDF: ${pageCount}`);
-            
+            console.log(`Total Pages in PDF: ${pageCount}`); 
             // Create an array with empty summary and transcription for each page
             for (let i = 0; i < pageCount; i++) {
               pagesContent.push({
