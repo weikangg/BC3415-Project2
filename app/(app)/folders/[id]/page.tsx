@@ -43,6 +43,54 @@ const FolderDetail = () => {
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
 
+    const [qrCodeUrl, setQrCodeUrl] = useState(null);
+
+    const generateQRCode = async () => {
+        try {
+            console.log(id)
+            const response = await fetch(`/api/sessions/${id}/qrcode`);
+            // const response = await fetch(`/api/sessions/HxHLPMlzfeGtLzjFVX9r/qrcode`);
+            // const response = await fetch(`/api/sessions/1HtIY4Mln3ZY2DRju3m2/qrcode`);
+            const data = await response.json();
+            setQrCodeUrl(data.qrCodeDataUrl);
+        } catch (error) {
+            console.error("Error fetching QR code:", error);
+        }
+    };
+
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [insights, setInsights] = useState("");
+    const handleInsightGeneration = async () => {
+        // Set loading state to true
+        setLoading(true);
+        setError(null);
+    
+        try {
+        // Make a GET request to the insights endpoint
+        const response = await fetch(`/api/sessions/HxHLPMlzfeGtLzjFVX9r/insights`, {
+            method: "GET",
+        });
+    
+        if (!response.ok) {
+            throw new Error("Failed to generate insights");
+        }
+    
+        // Parse the response JSON
+        const data = await response.json();
+    
+        // Update the insights state with the generated insights
+        setInsights(data.insights);
+        } catch (error) {
+        console.error("Error generating insights:", error);
+        // setError("There was an error generating insights. Please try again.");
+        } finally {
+        // Set loading state to false
+        setLoading(false);
+        }
+    }
+
+
     useEffect(() => {
         if (!id) return;
 
@@ -215,8 +263,116 @@ const FolderDetail = () => {
 
     if (!folder) return <p>Loading...</p>;
 
+    
+
     return (
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto p-4" >
+            <div style={{display:'flex', justifyContent:'center', alignItems:'center', alignSelf:'center', gap:'1rem'}}>
+
+                <div
+                style={{
+                    width: '100%',
+                    maxWidth: '42rem',
+                    padding: '1.25rem',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '1rem',
+                    backgroundColor: '#1f2937',
+                }}
+                >
+                <h1 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '800', fontSize: '22px' }}>
+                    Session QR Code Generator
+                </h1>
+                <h2 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '400', fontSize: '15px', textAlign: 'center' }}>
+                    Generate a QR code to share this session with participants
+                </h2>
+
+                <button
+                    onClick={generateQRCode}
+                    style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    padding: '0.5rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    transition: 'background-color 0.2s',
+                    border: 'none',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    }}
+                    disabled={loading}
+                >
+                    {loading ? "Generating..." : "Create Session QR (SQR)"}
+                </button>
+
+                {qrCodeUrl && (
+                    <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                    <h3 style={{ color: 'white', fontFamily: 'Sans-Serif', fontWeight: '600', fontSize: '18px' }}>
+                        Session QR Code
+                    </h3>
+                    <img
+                        src={qrCodeUrl}
+                        alt="Session QR Code"
+                        style={{
+                        border: '2px solid #d1d5db',
+                        borderRadius: '0.5rem',
+                        marginTop: '1rem',
+                        padding: '0.5rem',
+                        backgroundColor: 'white',
+                        }}
+                    />
+                    </div>
+                )}
+                </div>
+                
+                {/* Insight Generation */}
+
+                <div style={{ width: '100%', maxWidth: '42rem', padding: '1.25rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor:'#1f2937', height:'28rem' }}>
+                    <h1 style={{ color: 'white', fontFamily:"Sans-Serif", fontWeight:'800', fontSize:'22px' }}>Insight Generation</h1>
+                    <h1 style={{ color: 'white', fontFamily:"Sans-Serif", fontWeight:'400', fontSize:'15px' }}>Get some insight into what students are asking</h1>
+                    
+                    {/* Chat History Display */}
+                    <div style={{ overflowY: 'auto', maxHeight: '18.75rem', display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: '10rem', border: '0.3px solid grey', borderRadius: '0.5rem', backgroundColor:'#27272A', padding:'1rem 1rem 1rem 1rem' }}>
+                    {error && <p style={{ color: "red" }}>{error}</p>}
+                    {insights && (
+                        <div style={{ color: 'white', marginTop: '1rem', lineHeight: '1.6' }}>
+                        {/* Split insights by numbers followed by periods to identify list items */}
+                        {insights.split(/\d+\.\s/).map((paragraph, index) => (
+                            paragraph && ( // Ensure we don't render empty paragraphs
+                            <p key={index} style={{ marginBottom: '1rem', textIndent: '1rem' }}>
+                                {index + 1}. {paragraph.trim()}
+                            </p>
+                            )
+                        ))}
+                        </div>
+                    )}
+                    {loading && <p style={{ color: 'white' }}>Generating response...</p>}
+                    </div>
+
+                    {/* Submit Button */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                    <button
+                        style={{
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        padding: '0.5rem 1.5rem',
+                        borderRadius: '0.5rem',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        transition: 'background-color 0.2s',
+                        }}
+                        onClick={handleInsightGeneration}
+                        disabled={loading}
+                    >
+                        {loading ? "Generating..." : "Generate Insights"}
+                    </button>
+                    </div>
+                </div>
+            </div>
+
             <h1 className="text-2xl font-bold mb-4">{folder.name}</h1>
             <p>Date Created: {folder.date}</p>
 
