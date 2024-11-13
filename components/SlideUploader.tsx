@@ -16,6 +16,7 @@ export default function SlideUploader() {
         // Implement upload logic here (e.g., send slides to the server or store them locally)
         alert("Slides uploaded successfully!");
     };
+    
 
     return (
         <div className="mb-4">
