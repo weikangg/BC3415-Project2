@@ -281,6 +281,7 @@ const FolderDetail = () => {
                         width: "100%",
                         maxWidth: "42rem",
                         padding: "1.25rem",
+                        height:'28rem',
                         border: "1px solid #d1d5db",
                         borderRadius: "0.5rem",
                         boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
@@ -289,6 +290,7 @@ const FolderDetail = () => {
                         alignItems: "center",
                         gap: "1rem",
                         backgroundColor: "#1f2937",
+                        marginBottom:'2rem',
                     }}
                 >
                     <h1
