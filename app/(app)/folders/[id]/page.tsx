@@ -9,7 +9,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // Define the type for each file
-type File = {
+type DocumentFile = {
     name: string;
     type: string;
     url: string; // URL for files to display or link to the file content
@@ -20,17 +20,21 @@ type Folder = {
     id: string;
     name: string;
     date: string;
-    files: File[]; // Each file, such as PDF, doc, etc.
-    sessionId: string;
+    files: DocumentFile[]; // Each file, such as PDF, doc, etc.
+    sessionId: string; // Session ID for the folder
 };
 
 const FolderDetail = () => {
     const params = useParams();
     const id = params.id; // Access the folder ID from the route params
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const [folder, setFolder] = useState<Folder | null>(null);
     const [numPages, setNumPages] = useState<number | null>(null); // Track number of pages for the PDF
     const [pdfBlob, setPdfBlob] = useState<string | null>(null); // Track the PDF blob URL
     const [recordings, setRecordings] = useState<{ [key: number]: string }>({});
+    const [transcriptions, setTranscriptions] = useState<{
+        [key: number]: string;
+    }>({});
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentRecordingPage, setCurrentRecordingPage] = useState<
         number | null
@@ -66,6 +70,7 @@ const FolderDetail = () => {
                 const pdfFile = folder.files.find(
                     (file) => file.type === "pdf"
                 );
+                setSessionId(folder.sessionId); // Set the session ID for the folder
                 if (pdfFile) {
                     try {
                         const response = await fetch(pdfFile.url);
@@ -103,7 +108,7 @@ const FolderDetail = () => {
                     audioChunksRef.current.push(event.data);
                 };
 
-                mediaRecorder.onstop = () => {
+                mediaRecorder.onstop = async () => {
                     const audioBlob = new Blob(audioChunksRef.current, {
                         type: "audio/mp3",
                     });
@@ -113,6 +118,12 @@ const FolderDetail = () => {
                         [pageNumber]: audioURL,
                     }));
                     setCurrentRecordingPage(null); // Clear current recording page after stop
+
+                    // Convert audioBlob to File and send it to the transcribe API
+                    const audioFile = new File([audioBlob], "audio.mp3", {
+                        type: "audio/mp3",
+                    });
+                    await transcribeAudio(audioFile, pageNumber);
                 };
 
                 mediaRecorder.start();
@@ -127,6 +138,34 @@ const FolderDetail = () => {
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.stop();
             setIsRecording(false);
+        }
+    };
+
+    const transcribeAudio = async (audioFile: File, pageNumber: number) => {
+        const formData = new FormData();
+        formData.append("file", audioFile);
+        formData.append("documentId", sessionId as string);
+        formData.append("pageNumber", pageNumber.toString());
+
+        try {
+            const response = await fetch("/api/transcribe", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to transcribe audio: ${await response.text()}`
+                );
+            }
+
+            const { transcription } = await response.json();
+            setTranscriptions((prevTranscriptions) => ({
+                ...prevTranscriptions,
+                [pageNumber]: transcription,
+            }));
+        } catch (error) {
+            console.error("Error transcribing audio:", error);
         }
     };
 
@@ -161,7 +200,7 @@ const FolderDetail = () => {
                             {numPages &&
                                 Array.from({ length: numPages }, (_, index) => (
                                     <tr key={index} className="border-b-5">
-                                        <td className="py-2 px-4 text-center border">
+                                        <td className="py-2 px-4 text-center">
                                             <Page
                                                 pageNumber={index + 1}
                                                 width={500}
@@ -170,7 +209,7 @@ const FolderDetail = () => {
                                                 className="mx-auto w-1/3"
                                             />
                                         </td>
-                                        <td className="py-2 px-4 text-center w-1/3 border">
+                                        <td className="py-2 px-4 text-center w-1/3">
                                             <div className="flex flex-col items-center">
                                                 {isRecording &&
                                                 currentRecordingPage ===
@@ -204,9 +243,22 @@ const FolderDetail = () => {
                                                         className="mt-2"
                                                     />
                                                 )}
+                                                {transcriptions[index + 1] && (
+                                                    <textarea
+                                                        className="mt-2 border rounded p-2 w-3/4 mx-auto text-center" // Center the textarea
+                                                        rows={3}
+                                                        readOnly
+                                                        value={
+                                                            transcriptions[
+                                                                index + 1
+                                                            ]
+                                                        }
+                                                        placeholder="Transcription will appear here"
+                                                    />
+                                                )}
                                             </div>
                                         </td>
-                                        <td className="py-2 px-4 text-center w-1/3 border">
+                                        <td className="py-2 px-4 text-center w-1/3">
                                             Generating Notes...
                                         </td>
                                     </tr>
