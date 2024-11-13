@@ -165,11 +165,11 @@ export const Content = () => {
         <hr style={{ margin: '1rem 0' }} />
 
         {/* Question and File Upload Section */}
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexDirection: 'row' }}>
-            <div style={{ flex: '1' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexDirection: 'column' }}>
+            <div style={{  }}>
               <textarea
                 style={{
-                  width: '100%',
+                  width: '18rem',
                   padding: '0.5rem',
                   border: '1px solid #d1d5db',
                   borderRadius: '0.5rem',
@@ -184,13 +184,13 @@ export const Content = () => {
             </div>
 
           {/* File Upload Input */}
-          <div style={{ flex: '1' }}>
+          <div style={{  }}>
             <input
               type="file"
               accept="image/*"
               style={{
                 marginTop:'-0.4rem',
-                width: '100%',
+                width: '18rem',
                 padding: '0.5rem',
                 border: '1px solid #d1d5db',
                 borderRadius: '0.5rem',
