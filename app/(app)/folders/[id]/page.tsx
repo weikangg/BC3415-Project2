@@ -4,37 +4,38 @@ import { useEffect, useState, useRef } from "react";
 import { db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { Document, Page, pdfjs } from "react-pdf";
-
+import "react-pdf/dist/Page/TextLayer.css";
+import { CircularProgress } from "@nextui-org/progress";
 // Set up the worker for react-pdf
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-// Define the type for each file
 type DocumentFile = {
     name: string;
     type: string;
-    url: string; // URL for files to display or link to the file content
+    url: string;
 };
 
-// Define the type for each folder
 type Folder = {
     id: string;
     name: string;
     date: string;
-    files: DocumentFile[]; // Each file, such as PDF, doc, etc.
-    sessionId: string; // Session ID for the folder
+    files: DocumentFile[];
+    sessionId: string;
 };
 
 const FolderDetail = () => {
     const params = useParams();
-    const id = params.id; // Access the folder ID from the route params
+    const id = params.id;
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [folder, setFolder] = useState<Folder | null>(null);
-    const [numPages, setNumPages] = useState<number | null>(null); // Track number of pages for the PDF
-    const [pdfBlob, setPdfBlob] = useState<string | null>(null); // Track the PDF blob URL
+    const [numPages, setNumPages] = useState<number | null>(null);
+    const [pdfBlob, setPdfBlob] = useState<string | null>(null);
     const [recordings, setRecordings] = useState<{ [key: number]: string }>({});
     const [transcriptions, setTranscriptions] = useState<{
         [key: number]: string;
     }>({});
+    const [summaries, setSummaries] = useState<{ [key: number]: string }>({});
+    const [textLayers, setTextLayers] = useState<{ [key: number]: string }>({});
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentRecordingPage, setCurrentRecordingPage] = useState<
         number | null
@@ -70,7 +71,7 @@ const FolderDetail = () => {
                 const pdfFile = folder.files.find(
                     (file) => file.type === "pdf"
                 );
-                setSessionId(folder.sessionId); // Set the session ID for the folder
+                setSessionId(folder.sessionId);
                 if (pdfFile) {
                     try {
                         const response = await fetch(pdfFile.url);
@@ -102,7 +103,7 @@ const FolderDetail = () => {
                 const mediaRecorder = new MediaRecorder(stream);
                 mediaRecorderRef.current = mediaRecorder;
                 audioChunksRef.current = [];
-                setCurrentRecordingPage(pageNumber); // Set the current recording page
+                setCurrentRecordingPage(pageNumber);
 
                 mediaRecorder.ondataavailable = (event) => {
                     audioChunksRef.current.push(event.data);
@@ -117,9 +118,8 @@ const FolderDetail = () => {
                         ...prevRecordings,
                         [pageNumber]: audioURL,
                     }));
-                    setCurrentRecordingPage(null); // Clear current recording page after stop
+                    setCurrentRecordingPage(null);
 
-                    // Convert audioBlob to File and send it to the transcribe API
                     const audioFile = new File([audioBlob], "audio.mp3", {
                         type: "audio/mp3",
                     });
@@ -164,8 +164,52 @@ const FolderDetail = () => {
                 ...prevTranscriptions,
                 [pageNumber]: transcription,
             }));
+
+            if (textLayers[pageNumber]) {
+                await sendSummaryRequest(
+                    textLayers[pageNumber],
+                    transcription,
+                    pageNumber
+                );
+            }
         } catch (error) {
             console.error("Error transcribing audio:", error);
+        }
+    };
+
+    const sendSummaryRequest = async (
+        content: string,
+        transcription: string,
+        pageNumber: number
+    ) => {
+        try {
+            const response = await fetch("/api/summary", {
+                method: "POST",
+                body: JSON.stringify({
+                    documentId: sessionId,
+                    pageNumber,
+                    content,
+                    transcription,
+                }),
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(
+                    `Failed to generate summary: ${await response.text()}`
+                );
+            }
+
+            const { summary } = await response.json();
+            console.log("Summary:", summary);
+            setSummaries((prevSummaries) => ({
+                ...prevSummaries,
+                [pageNumber]: summary,
+            }));
+        } catch (error) {
+            console.error("Error generating summary:", error);
         }
     };
 
@@ -205,11 +249,34 @@ const FolderDetail = () => {
                                                 pageNumber={index + 1}
                                                 width={500}
                                                 renderAnnotationLayer={false}
-                                                renderTextLayer={false}
+                                                renderTextLayer={true}
                                                 className="mx-auto w-1/3"
+                                                onGetTextSuccess={(
+                                                    textContent
+                                                ) => {
+                                                    const text =
+                                                        textContent.items
+                                                            .map((item) => {
+                                                                if (
+                                                                    "str" in
+                                                                    item
+                                                                ) {
+                                                                    return item.str;
+                                                                }
+                                                                return "";
+                                                            })
+                                                            .join(" ");
+
+                                                    setTextLayers(
+                                                        (prevTextLayers) => ({
+                                                            ...prevTextLayers,
+                                                            [index + 1]: text,
+                                                        })
+                                                    );
+                                                }}
                                             />
                                         </td>
-                                        <td className="py-2 px-4 text-center w-1/3">
+                                        <td className="py-2 px-4 text-center w-1/3 border">
                                             <div className="flex flex-col items-center">
                                                 {isRecording &&
                                                 currentRecordingPage ===
@@ -245,7 +312,7 @@ const FolderDetail = () => {
                                                 )}
                                                 {transcriptions[index + 1] && (
                                                     <textarea
-                                                        className="mt-2 border rounded p-2 w-3/4 mx-auto text-center" // Center the textarea
+                                                        className="mt-2 border rounded p-2 w-3/4 mx-auto text-center"
                                                         rows={3}
                                                         readOnly
                                                         value={
@@ -259,7 +326,13 @@ const FolderDetail = () => {
                                             </div>
                                         </td>
                                         <td className="py-2 px-4 text-center w-1/3">
-                                            Generating Notes...
+                                            {recordings[index + 1]
+                                                ? summaries[index + 1] || (
+                                                      <div className="flex justify-center items-center h-full">
+                                                          <CircularProgress aria-label="Loading..." />
+                                                      </div>
+                                                  )
+                                                : "Please record an audio"}
                                         </td>
                                     </tr>
                                 ))}
